@@ -1,38 +1,41 @@
-# Monte Carlo Options Pricing Engine
+# Monte Carlo Options Pricing
 
-A Python implementation of Monte Carlo simulation for pricing European call and put options under Geometric Brownian Motion.  
-This project demonstrates stochastic modeling, numerical methods, and reproducible quantitative analysis.
+A high-performance Monte Carlo engine for pricing European options under Geometric Brownian Motion (GBM).  
+This project demonstrates numerical methods, stochastic simulation, and vectorized Python applied to quantitative finance.
 
 ---
 
 ## Overview
 
-This engine prices European options by simulating thousands of potential future asset paths and discounting the expected payoff back to present value.
+This model simulates thousands of asset price paths to estimate the fair value of European call and put options.  
+It is built using fully vectorized NumPy operations for speed and numerical accuracy.
 
-The goal of this project is to demonstrate:
+The project showcases:
 
-- Stochastic process simulation (GBM)
-- Monte Carlo convergence behavior
-- Option pricing via simulation vs. closed-form intuition
-- Clean, testable, modular quantitative code
+- Stochastic differential equation simulation
+- Risk-neutral valuation
+- Monte Carlo estimation
+- Vectorization for performance
+- Clean quantitative implementation
 
 ---
 
 ## Model
 
-We simulate asset paths using:
+We simulate asset paths under **Geometric Brownian Motion (GBM)**:
 
-\[
-dS_t = \mu S_t dt + \sigma S_t dW_t
-\]
+S(t + Δt) = S(t) · exp[(r − 0.5·σ²)·Δt + σ·√Δt·Z]
 
-and estimate the option price as:
+where:
 
-\[
-Price = e^{-rT} \cdot \mathbb{E}[\text{payoff}]
-\]
+- r = risk-free rate  
+- σ = volatility  
+- Z ~ N(0,1)
+
+The option price is estimated as:
+
+Price = e^(−rT) · average(payoff)
 
 ---
 
 ## Project Structure
-
