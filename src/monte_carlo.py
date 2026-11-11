@@ -17,51 +17,51 @@ def monte_carlo_option_price(
     antithetic: bool = True,
     control_variate: bool = True,
 ) -> tuple[float, float]:
+    """Price a European option under GBM by Monte Carlo.
 
+    Args:
+        S0, K, T, r, sigma: spot, strike, maturity (years), risk-free rate, volatility.
+        n_sims: number of simulated terminal prices (rounded down to an even
+            number when ``antithetic`` is True).
+        option_type: ``"call"`` or ``"put"``.
+        seed: RNG seed (``None`` for non-deterministic draws).
+        antithetic: simulate pairs ``(Z, -Z)``.
+        control_variate: use ``exp(-rT) * S_T`` (known mean ``S0``) as control.
+
+    Returns:
+        ``(price, standard_error)``. With antithetic sampling the two members of
+        a pair are negatively correlated, so the estimator averages each pair
+        and the standard error is computed over the independent pair means.
+        Treating all ``n_sims`` draws as i.i.d. would overstate the error.
+    """
     if option_type not in ("call", "put"):
         raise ValueError("option_type must be 'call' or 'put'")
+    if n_sims < 2:
+        raise ValueError("n_sims must be at least 2")
 
     rng = np.random.default_rng(seed)
-
-    # --- Antithetic variates ---
-    half = n_sims // 2
-    Z_half = rng.standard_normal(half)
-    Z = np.concatenate([Z_half, -Z_half])
-
-    if Z.size < n_sims:
-        Z = np.concatenate([Z, rng.standard_normal(1)])
-
-    # --- GBM terminal price ---
-    drift = (r - 0.5 * sigma**2) * T
-    diffusion = sigma * np.sqrt(T) * Z
-    ST = S0 * np.exp(drift + diffusion)
-
-    # --- Payoff ---
-    if option_type == "call":
-        payoff = np.maximum(ST - K, 0.0)
-    else:
-        payoff = np.maximum(K - ST, 0.0)
-
     disc = np.exp(-r * T)
-    discounted_payoff = disc * payoff
+    drift = (r - 0.5 * sigma**2) * T
+    vol = sigma * np.sqrt(T)
 
-    # --- Control variate ---
+    def sample(Z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        ST = S0 * np.exp(drift + vol * Z)
+        payoff = np.maximum(ST - K, 0.0) if option_type == "call" else np.maximum(K - ST, 0.0)
+        return disc * payoff, disc * ST
+
+    if antithetic:
+        Z = rng.standard_normal(n_sims // 2)
+        y_a, x_a = sample(Z)
+        y_b, x_b = sample(-Z)
+        Y, X = 0.5 * (y_a + y_b), 0.5 * (x_a + x_b)  # independent pair means
+    else:
+        Y, X = sample(rng.standard_normal(n_sims))
+
     if control_variate:
-        X = disc * ST
-        EX = S0
+        beta = np.cov(Y, X, ddof=1)[0, 1] / np.var(X, ddof=1)
+        Y = Y - beta * (X - S0)  # E[X] = S0 under the risk-neutral measure
 
-        Y = discounted_payoff
-        beta = np.cov(Y, X)[0, 1] / np.var(X)
-
-        Y_cv = Y - beta * (X - EX)
-
-        price = np.mean(Y_cv)
-        se = np.std(Y_cv, ddof=1) / np.sqrt(len(Y_cv))
-        return price, se
-
-    price = np.mean(discounted_payoff)
-    se = np.std(discounted_payoff, ddof=1) / np.sqrt(len(discounted_payoff))
-    return price, se
+    return float(np.mean(Y)), float(np.std(Y, ddof=1) / np.sqrt(Y.size))
 
 
 def _bs_price(S0, K, T, r, sigma, option_type):
