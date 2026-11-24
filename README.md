@@ -41,6 +41,31 @@ Validation against Black-Scholes (200,000 simulations, antithetic + control vari
 
 ![Monte Carlo convergence](images/convergence_call.png)
 
+## Asian options (path-dependent)
+
+`src/asian.py` prices discretely monitored **arithmetic-average** Asian options, $\max(\pm(\bar S - K),0)$ with $\bar S=\frac1n\sum_i S_{t_i}$, which have no closed form. The control variate is the **geometric-average** Asian payoff, which is exactly priceable because the geometric mean of a lognormal path is lognormal:
+
+$$\ln G\sim\mathcal N(m,v),\quad m=\ln S_0+(r-\tfrac12\sigma^2)T\tfrac{n+1}{2n},\quad v=\sigma^2T\tfrac{(n+1)(2n+1)}{6n^2}.$$
+
+Arithmetic and geometric payoffs are almost perfectly correlated, so the control variate removes nearly all the variance. Call, $S_0=K=100$, $T=1$, $r=5\%$, $\sigma=20\%$, 50 fixings, 10,000 paths, 200 independent repetitions (`python -m src.asian_study`):
+
+| Scheme | Mean price | Empirical std | Mean reported SE | Variance reduction |
+|---|---|---|---|---|
+| Plain MC | 5.8567 | 0.07880 | 0.08106 | 1.0x |
+| Antithetic | 5.8571 | 0.05814 | 0.05622 | 1.8x |
+| Geometric CV | 5.8576 | 0.00221 | 0.00224 | 1269x |
+| Antithetic + geometric CV | 5.8576 | 0.00232 | 0.00234 | 1157x |
+
+Once the control variate is on, antithetic sampling adds nothing here: the residual is already small and antithetic pairing mainly cancels its linear part. The reported SE tracks the empirical std in every row.
+
+```python
+from src.asian import asian_option_price, geometric_asian_price
+
+price, se = asian_option_price(S0=100, K=100, T=1.0, r=0.05, sigma=0.2, n_steps=50, n_sims=100_000)
+```
+
+Tests (`tests/test_asian.py`) check the closed form against brute-force simulation, the one-fixing reduction to Black-Scholes, arithmetic ≥ geometric (AM-GM), Asian < vanilla, arithmetic put-call parity, and control-variate unbiasedness.
+
 ## Usage
 
 ```python
